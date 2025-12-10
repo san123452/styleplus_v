@@ -34,7 +34,7 @@ function Header({ isLoggedIn, userName, onLogout }) {
         <header className="header">
             {/* 로고 영역 */}
             <div className="logo">
-                <Link to="/" style={{textDecoration:'none', color:'var(--main-color)'}}>SORA MARKET</Link>
+                <Link to="/" style={{textDecoration:'none', color:'var(--main-color)'}}>OLIVE YONG</Link>
             </div>
 
             {/* 검색창 영역 (가운데 배치 느낌으로) */}

@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
-function ProductDetail({ products, reviews, onAddReview,onAddToCart,userId}) {  ///////🎈onAddTocart,userId 추가함
-  // const userId = localStorage.getItem('userId');🎈 이거 삭제함
+function ProductDetail({ products, reviews, onAddReview,onAddToCart,userId}) {
   const navigate = useNavigate();
   const { productId } = useParams();
 
@@ -10,9 +9,14 @@ function ProductDetail({ products, reviews, onAddReview,onAddToCart,userId}) {  
   const [reviewComment, setReviewComment] = useState('');
   const [quantity, setQuantity] = useState(1);
 
-  const safeProductId = String(productId); //🎈 이거 추가함
+  const safeProductId = String(productId);
   const productReviews = reviews.filter(r => String(r.pId) === productId);
   const product = products.find(p => String(p.id) === productId);
+////////////////////////리뷰 평균 구하는 코드 추가
+const averageRating = productReviews.length > 0
+  ? productReviews.reduce((sum, review) => sum + review.rating, 0) / productReviews.length
+  : 0;
+//////////////
 
   const handleQuantityButton = (type) => {
     if (!product) return;
@@ -51,26 +55,6 @@ function ProductDetail({ products, reviews, onAddReview,onAddToCart,userId}) {  
     }
     return <div style={{marginBottom:'10px'}}>{stars} <span style={{fontSize:'14px'}}>({rating}점)</span></div>;
   };
-////////////////////////////////
-   const handleAddToCartClick = () => {
-    if (!userId) { 
-        alert('로그인이 필요한 서비스입니다.'); 
-        navigate('/login'); 
-        return; 
-    }
-
-    // 2. 재고 체크
-    if (quantity > product.stock) {
-        alert("재고가 부족합니다.");
-        return;
-    }
-
-    if (onAddToCart) {
-        onAddToCart(product.id, quantity);
-    } else {
-        alert("시스템 오류: 함수 연결 실패");
-    }
-  };
 
   const handleSubmitReview = () => {
     if (!userId) { alert('로그인이 필요합니다.'); navigate('/login'); return; }
@@ -89,6 +73,136 @@ function ProductDetail({ products, reviews, onAddReview,onAddToCart,userId}) {  
     );
   }
 
+  const moveCart = async () => {
+    if (!userId) {
+        alert('로그인이 필요합니다.');
+        navigate('/login');
+        return;
+    }
+
+    try {
+        const response = await fetch('http://localhost:8080/pro/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                pId: product.id,
+                id: userId,
+                amount: quantity,
+                img: product.image,
+                pName: product.name,
+                pPrice: product.price
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.result) {
+            alert('장바구니에 담겼습니다.');
+            const goToCart = window.confirm('장바구니로 이동하시겠습니까?');
+            if (goToCart) {
+                navigate('/cart');
+            }
+        } else {
+            alert('장바구니 담는중 오류 발생');
+        }
+    } catch (error) {
+        console.error('장바구니 추가 오류:', error);
+        alert('장바구니 추가 실패');
+    }
+}
+
+const buyNow = async () => {
+  if (!userId) {
+        alert('로그인이 필요합니다.');
+        navigate('/login');
+        return;
+    }
+    try {
+        const response = await fetch('http://localhost:8080/pro/buynow', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                pId: product.id,
+                id: userId,
+                amount: quantity,
+                img: product.image,
+                pName: product.name,
+                pPrice: product.price
+            })
+        });
+        
+        const data = await response.json();
+
+        if (!response.ok) {
+            alert('장바구니 추가 실패');
+            return;
+        }
+        
+        if (data.result) {
+            alert('주문페이지로 넘어갑니다.');
+            navigate('/order', { 
+                state: { 
+                    selectedItems: [{
+                        id: product.id,
+                        pid: product.Pid,
+                        name: product.name,
+                        price: product.price,
+                        image: product.image,
+                        amount: quantity
+                    }]
+                }
+            });
+        } else {
+            alert(data.message || '장바구니 추가 실패');
+        }
+    } catch (error) {
+        console.error('장바구니 추가 오류:', error);
+        alert('장바구니 추가 실패');
+    }
+}
+///////////////////여기 밑에 1210(리뷰 연령대 분석)
+const calculateAgeStats = (reviews) => {
+  const stats = { '10대': 0, '20대': 0, '30대': 0, '40대': 0, '50대 이상': 0 };
+  const total = reviews.length;
+
+  if (total === 0) return null; // 리뷰 없으면 분석 안 함
+
+  reviews.forEach(review => {
+    if (!review.dob) return; // 생년월일 없으면 패스
+
+    const birthDate = new Date(review.dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    
+    // 생일 안 지났으면 만 나이 -1 (선택사항, 한국식 나이면 생략 가능)
+    // if (today < new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate())) {
+    //   age--;
+    // }
+
+    // 연령대 분류
+    if (age < 20) stats['10대']++;
+    else if (age < 30) stats['20대']++;
+    else if (age < 40) stats['30대']++;
+    else if (age < 50) stats['40대']++;
+    else stats['50대 이상']++;
+  });
+
+  // 퍼센트로 변환
+  const percentages = {};
+  for (const group in stats) {
+    percentages[group] = Math.round((stats[group] / total) * 100);
+  }
+  
+  return percentages; // 예: { '10대': 10, '20대': 50, ... }
+};
+
+const ageStats = calculateAgeStats(productReviews);
+
+////////////////////////여기위에 공사
   return (
     <div style={{padding:'20px'}}>
       <button className="btn" style={{backgroundColor:'#aaa', marginBottom:'20px'}} onClick={() => navigate('/')}>← 목록으로</button>
@@ -120,16 +234,17 @@ function ProductDetail({ products, reviews, onAddReview,onAddToCart,userId}) {  
             <div style={{display:'flex', gap:'10px'}}>
                 <button 
                     className="btn" 
-                    style={{flex:1, backgroundColor:'#fff', color:'var(--main-color)', border:'2px solid var(--main-color)'}} 
-                    onClick={handleAddToCartClick}
-                >
+                    style={{flex:1, 
+                    backgroundColor:'#fff', 
+                    color:'var(--main-color)', 
+                    border:'2px solid var(--main-color)'}} 
+                    onClick={moveCart}>
                     장바구니
                 </button>
                 <button 
                     className="btn" 
                     style={{flex:1}} 
-                    onClick={handleAddToCartClick} // 바로구매도 일단 장바구니  태움
-                >
+                    onClick={buyNow}>
                     바로 구매
                 </button>
             </div>
@@ -138,13 +253,39 @@ function ProductDetail({ products, reviews, onAddReview,onAddToCart,userId}) {  
 
       <hr style={{border:'0', borderTop:'1px solid #eee', margin:'40px 0'}} />
 
-
-
-
       {/* 리뷰 영역 */}
       <div>
-        <h3>리뷰 ({productReviews.length})</h3>
+{/* 여기아래 공사했어요1210 */}
+        <h3>리뷰 ({productReviews.length}) ★{averageRating.toFixed(1)}</h3>
         
+{ageStats && (
+  <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
+    <h4 style={{ marginBottom: '10px', fontSize: '14px', color: '#555' }}>연령별 선호도</h4>
+    
+    {Object.entries(ageStats).map(([ageGroup, percent]) => (
+      // 퍼센트가 0보다 클 때만 표시
+      percent > 0 && (
+        <div key={ageGroup} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontSize: '12px' }}>
+          {/* 라벨 (예: 20대) */}
+          <span style={{ width: '60px', fontWeight: 'bold' }}>{ageGroup}</span>
+          
+          {/* 막대 그래프 배경 */}
+          <div style={{ flex: 1, height: '10px', backgroundColor: '#e0e0e0', borderRadius: '5px', overflow: 'hidden', marginRight: '10px' }}>
+            {/* 실제 퍼센트 막대 (메인 컬러 사용) */}
+            <div style={{ width: `${percent}%`, height: '100%', backgroundColor: '#6B9AC4' }}></div>
+          </div>
+          
+          {/* 퍼센트 숫자 */}
+          <span style={{ width: '30px', textAlign: 'right', color: '#666' }}>{percent}%</span>
+        </div>
+      )
+    ))}
+  </div>
+)}
+        {/* 여기 위에 공사 좀 했어요 1210 */}
+
+
+
         <div style={{backgroundColor:'#f9f9f9', padding:'20px', borderRadius:'12px', margin:'20px 0'}}>
             {renderStarSelect()}
             <div style={{display:'flex', gap:'10px'}}>
@@ -169,5 +310,4 @@ function ProductDetail({ products, reviews, onAddReview,onAddToCart,userId}) {  
 }
 
 export default ProductDetail;
-
 

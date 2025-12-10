@@ -63,7 +63,8 @@ router.get('/reviews', async (req, res) => {
         r.date, 
         r.rating,
         u.nickname,
-        u.gender 
+        u.gender ,
+        u.dob
       FROM review r
       LEFT JOIN users u ON r.id = u.id
       ORDER BY r.date DESC
@@ -79,7 +80,8 @@ router.get('/reviews', async (req, res) => {
       userName: row.nickname,
       date: row.date,
       gender: row.gender,
-      rating: row.rating //별점 일단 고정
+      rating: row.rating,//별점 일단 고정
+      dob: row.dob
     }));
 
     res.json(reviews);
@@ -106,7 +108,7 @@ router.post('/addreview', async (req, res) => {
     const query = `
       SELECT 
         r.review_id, r.id AS id, r.pId, r.content, r.date, r.rating,
-        u.nickname, u.gender 
+        u.nickname, u.gender
       FROM review r
       LEFT JOIN users u ON r.id = u.id
       ORDER BY r.date DESC
